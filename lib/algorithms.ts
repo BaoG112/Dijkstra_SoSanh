@@ -21,7 +21,6 @@ export function dijkstra(graph: Graph, start: number, end: number): AlgorithmRes
   const unvisited = new Set<number>()
   const visited = new Set<number>()
 
-  // Initialize distances
   Object.keys(graph).forEach((node) => {
     const nodeId = Number.parseInt(node)
     distances[nodeId] = nodeId === start ? 0 : Number.POSITIVE_INFINITY
@@ -83,9 +82,13 @@ export function bfs(graph: Graph, start: number, end: number): AlgorithmResult {
   const startTime = performance.now()
   const visited = new Set<number>()
   const previous: { [key: number]: number | null } = {}
+  const distances: { [key: number]: number } = {}
   const queue: number[] = [start]
-  const distance = 0
 
+  Object.keys(graph).forEach((node) => {
+    distances[Number.parseInt(node)] = Number.POSITIVE_INFINITY
+  })
+  distances[start] = 0
   visited.add(start)
   previous[start] = null
 
@@ -95,9 +98,10 @@ export function bfs(graph: Graph, start: number, end: number): AlgorithmResult {
     if (current === end) break
 
     if (graph[current]) {
-      graph[current].forEach(([neighbor]) => {
+      graph[current].forEach(([neighbor, weight]) => {
         if (!visited.has(neighbor)) {
           visited.add(neighbor)
+          distances[neighbor] = distances[current] + 1
           previous[neighbor] = current
           queue.push(neighbor)
         }
@@ -118,7 +122,7 @@ export function bfs(graph: Graph, start: number, end: number): AlgorithmResult {
   return {
     visited,
     path: path.length > 0 && path[0] === start ? path : [],
-    distance: path.length - 1,
+    distance: distances[end],
     time: endTime - startTime,
   }
 }
@@ -128,9 +132,14 @@ export function dfs(graph: Graph, start: number, end: number): AlgorithmResult {
   const startTime = performance.now()
   const visited = new Set<number>()
   const previous: { [key: number]: number | null } = {}
+  const distances: { [key: number]: number } = {}
   const stack: number[] = [start]
   let found = false
 
+  Object.keys(graph).forEach((node) => {
+    distances[Number.parseInt(node)] = Number.POSITIVE_INFINITY
+  })
+  distances[start] = 0
   previous[start] = null
 
   while (stack.length > 0) {
@@ -145,14 +154,13 @@ export function dfs(graph: Graph, start: number, end: number): AlgorithmResult {
       }
 
       if (graph[current]) {
-        // Reverse to maintain left-to-right exploration
-        graph[current].reverse().forEach(([neighbor]) => {
+        graph[current].forEach(([neighbor, weight]) => {
           if (!visited.has(neighbor)) {
+            distances[neighbor] = distances[current] + 1
             previous[neighbor] = current
             stack.push(neighbor)
           }
         })
-        graph[current].reverse()
       }
     }
   }
@@ -170,7 +178,7 @@ export function dfs(graph: Graph, start: number, end: number): AlgorithmResult {
   return {
     visited,
     path: found && path.length > 0 && path[0] === start ? path : [],
-    distance: path.length - 1,
+    distance: distances[end],
     time: endTime - startTime,
   }
 }
@@ -253,6 +261,67 @@ export function aStar(graph: Graph, start: number, end: number, nodes: Node[]): 
     visited,
     path: path.length > 0 && path[0] === start ? path : [],
     distance: gScore[end],
+    time: endTime - startTime,
+  }
+}
+
+// Bellman-Ford algorithm to handle negative weights
+export function bellmanFord(graph: Graph, start: number, end: number): AlgorithmResult {
+  const startTime = performance.now()
+  const distances: { [key: number]: number } = {}
+  const previous: { [key: number]: number | null } = {}
+  const visited = new Set<number>()
+
+  Object.keys(graph).forEach((node) => {
+    const nodeId = Number.parseInt(node)
+    distances[nodeId] = nodeId === start ? 0 : Number.POSITIVE_INFINITY
+    previous[nodeId] = null
+  })
+
+  const nodes = Object.keys(graph).map(Number.parseInt)
+
+  // Relax edges |V| - 1 times
+  for (let i = 0; i < nodes.length - 1; i++) {
+    nodes.forEach((u) => {
+      if (distances[u] !== Number.POSITIVE_INFINITY) {
+        if (graph[u]) {
+          graph[u].forEach(([v, weight]) => {
+            const newDist = distances[u] + weight
+            if (newDist < distances[v]) {
+              distances[v] = newDist
+              previous[v] = u
+            }
+          })
+        }
+      }
+    })
+  }
+
+  // Check for negative cycles (only for reachable nodes)
+  nodes.forEach((u) => {
+    if (distances[u] !== Number.POSITIVE_INFINITY && graph[u]) {
+      graph[u].forEach(([v, weight]) => {
+        if (distances[u] + weight < distances[v]) {
+          // Found negative cycle, mark affected distances
+          distances[v] = Number.NEGATIVE_INFINITY
+        }
+      })
+    }
+  })
+
+  // Mark visited nodes during traversal
+  nodes.forEach((node) => {
+    if (distances[node] !== Number.POSITIVE_INFINITY) {
+      visited.add(node)
+    }
+  })
+
+  const endTime = performance.now()
+
+  return {
+    visited,
+    path: [],
+    distance: distances[end],
     time: endTime - startTime,
   }
 }

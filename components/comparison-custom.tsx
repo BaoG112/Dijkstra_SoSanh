@@ -1,40 +1,55 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { dijkstra, bfs, dfs, aStar } from "@/lib/algorithms"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from "recharts"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { dijkstra, bfs, dfs, aStar, bellmanFord } from "@/lib/algorithms"
 
-interface TestCase {
+interface ComparisonMode {
   id: string
   name: string
-  description: string
+  algorithms: [string, string]
+  icon: string
+}
+
+const comparisonModes: ComparisonMode[] = [
+  {
+    id: "dijkstra-bellman",
+    name: "Dijkstra vs Bellman-Ford",
+    algorithms: ["dijkstra", "bellmanFord"],
+    icon: "⚔️",
+  },
+  {
+    id: "dijkstra-bfs",
+    name: "Dijkstra vs BFS",
+    algorithms: ["dijkstra", "bfs"],
+    icon: "🔄",
+  },
+  {
+    id: "dijkstra-dfs",
+    name: "Dijkstra vs DFS",
+    algorithms: ["dijkstra", "dfs"],
+    icon: "🌳",
+  },
+  {
+    id: "dijkstra-astar",
+    name: "Dijkstra vs A*",
+    algorithms: ["dijkstra", "aStar"],
+    icon: "⭐",
+  },
+]
+
+interface TestGraph {
+  name: string
   nodes: Array<{ id: number; x: number; y: number }>
   edges: Array<{ from: number; to: number; weight: number }>
   start: number
   end: number
 }
 
-const testCases: TestCase[] = [
+const testGraphs: TestGraph[] = [
   {
-    id: "linear",
     name: "Đường Thẳng",
-    description: "Đơn giản: 5 nút nối liên tiếp",
     nodes: [
       { id: 0, x: 100, y: 250 },
       { id: 1, x: 250, y: 250 },
@@ -52,9 +67,7 @@ const testCases: TestCase[] = [
     end: 4,
   },
   {
-    id: "multiple",
     name: "Nhiều Đường",
-    description: "Dijkstra tìm ngắn nhất, DFS/BFS tìm dài hơn",
     nodes: [
       { id: 0, x: 150, y: 150 },
       { id: 1, x: 250, y: 100 },
@@ -71,35 +84,7 @@ const testCases: TestCase[] = [
     end: 3,
   },
   {
-    id: "dense",
-    name: "Đồ Thị Dày Đặc",
-    description: "A* có thể hiệu quả hơn với heuristic",
-    nodes: [
-      { id: 0, x: 100, y: 100 },
-      { id: 1, x: 200, y: 100 },
-      { id: 2, x: 300, y: 100 },
-      { id: 3, x: 100, y: 200 },
-      { id: 4, x: 200, y: 200 },
-      { id: 5, x: 300, y: 200 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 1 },
-      { from: 0, to: 3, weight: 1 },
-      { from: 1, to: 2, weight: 1 },
-      { from: 1, to: 4, weight: 1 },
-      { from: 2, to: 5, weight: 1 },
-      { from: 3, to: 4, weight: 1 },
-      { from: 4, to: 5, weight: 1 },
-      { from: 0, to: 4, weight: 2 },
-      { from: 1, to: 5, weight: 2 },
-    ],
-    start: 0,
-    end: 5,
-  },
-  {
-    id: "weighted",
     name: "Trọng Số Không Đều",
-    description: "BFS bỏ qua trọng số, Dijkstra ưu tiên đúng",
     nodes: [
       { id: 0, x: 100, y: 150 },
       { id: 1, x: 250, y: 100 },
@@ -116,342 +101,363 @@ const testCases: TestCase[] = [
     end: 3,
   },
   {
-    id: "disconnected",
-    name: "Đồ Thị Không Liên Thông",
-    description: "Thử thách: không có đường từ start đến end",
+    name: "Trọng Số Âm",
     nodes: [
-      { id: 0, x: 100, y: 150 },
-      { id: 1, x: 200, y: 150 },
-      { id: 2, x: 400, y: 150 },
-      { id: 3, x: 500, y: 150 },
+      { id: 0, x: 100, y: 200 },
+      { id: 1, x: 250, y: 100 },
+      { id: 2, x: 250, y: 300 },
+      { id: 3, x: 400, y: 200 },
     ],
     edges: [
-      { from: 0, to: 1, weight: 5 },
+      { from: 0, to: 1, weight: 4 },
+      { from: 0, to: 2, weight: 2 },
+      { from: 1, to: 3, weight: -3 },
+      { from: 2, to: 1, weight: 1 },
       { from: 2, to: 3, weight: 5 },
-    ],
-    start: 0,
-    end: 3,
-  },
-  {
-    id: "cycle",
-    name: "Chu Trình",
-    description: "Đồ thị có vòng lặp - các thuật toán xử lý như thế nào?",
-    nodes: [
-      { id: 0, x: 200, y: 100 },
-      { id: 1, x: 300, y: 100 },
-      { id: 2, x: 350, y: 200 },
-      { id: 3, x: 250, y: 250 },
-      { id: 4, x: 150, y: 200 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 2 },
-      { from: 1, to: 2, weight: 3 },
-      { from: 2, to: 3, weight: 2 },
-      { from: 3, to: 4, weight: 3 },
-      { from: 4, to: 0, weight: 2 },
-      { from: 0, to: 3, weight: 8 },
     ],
     start: 0,
     end: 3,
   },
 ]
 
-export default function ComparisonCustom() {
-  const [selectedCase, setSelectedCase] = useState<TestCase>(testCases[0])
-  const [results, setResults] = useState<any>(null)
-  const [isRunning, setIsRunning] = useState(false)
+interface VisualizerState {
+  visitedNodes: number[]
+  path: number[]
+  distance: number
+  time: number
+  isRunning: boolean
+}
 
-  const runComparison = () => {
-    setIsRunning(true)
+function ComparisonVisualizer({
+  nodes,
+  edges,
+  start,
+  end,
+  algorithm,
+  isRunning,
+  onComplete,
+}: {
+  nodes: Array<{ id: number; x: number; y: number }>
+  edges: Array<{ from: number; to: number; weight: number }>
+  start: number
+  end: number
+  algorithm: string
+  isRunning: boolean
+  onComplete: (result: any) => void
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [state, setState] = useState<VisualizerState>({
+    visitedNodes: [],
+    path: [],
+    distance: 0,
+    time: 0,
+    isRunning: false,
+  })
 
-    // Xây dựng đồ thị
-    const graph: { [key: number]: Array<[number, number]> } = {}
-    selectedCase.nodes.forEach((n) => {
-      graph[n.id] = []
+  useEffect(() => {
+    if (!isRunning) return
+
+    const runAsync = async () => {
+      const graph: { [key: number]: Array<[number, number]> } = {}
+      nodes.forEach((n) => {
+        graph[n.id] = []
+      })
+      edges.forEach((e) => {
+        graph[e.from].push([e.to, e.weight])
+      })
+
+      let result
+      const startTime = performance.now()
+
+      try {
+        switch (algorithm) {
+          case "dijkstra":
+            result = dijkstra(graph, start, end)
+            break
+          case "bellmanFord":
+            result = bellmanFord(graph, start, end)
+            break
+          case "bfs":
+            result = bfs(graph, start, end)
+            break
+          case "dfs":
+            result = dfs(graph, start, end)
+            break
+          case "aStar":
+            result = aStar(graph, start, end, nodes)
+            break
+          default:
+            return
+        }
+
+        const endTime = performance.now()
+
+        // Animate visited nodes
+        const visitedArray = Array.from(result.visited)
+        for (let i = 0; i < visitedArray.length; i++) {
+          await new Promise((resolve) => {
+            setTimeout(() => {
+              setState((prev) => ({
+                ...prev,
+                visitedNodes: [...prev.visitedNodes, visitedArray[i]],
+              }))
+              resolve(null)
+            }, 50)
+          })
+        }
+
+        // Show path
+        setState((prev) => ({
+          ...prev,
+          path: result.path,
+          distance: result.distance,
+          time: endTime - startTime,
+          isRunning: false,
+        }))
+
+        onComplete({
+          path: result.path,
+          distance: result.distance,
+          visited: visitedArray.length,
+          time: endTime - startTime,
+        })
+      } catch (error) {
+        setState((prev) => ({ ...prev, isRunning: false }))
+      }
+    }
+
+    runAsync()
+  }, [isRunning, algorithm, nodes, edges, start, end, onComplete])
+
+  useEffect(() => {
+    if (!canvasRef.current) return
+
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    ctx.fillStyle = "rgb(245, 245, 247)"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Draw edges
+    edges.forEach(({ from, to, weight }) => {
+      const fromNode = nodes[from]
+      const toNode = nodes[to]
+
+      const isInPath = state.path.includes(from) && state.path.includes(to)
+
+      if (isInPath) {
+        ctx.strokeStyle = "rgb(59, 130, 246)"
+        ctx.lineWidth = 3
+      } else if (state.visitedNodes.includes(from) && state.visitedNodes.includes(to)) {
+        ctx.strokeStyle = "rgb(249, 115, 22)"
+        ctx.lineWidth = 2
+        ctx.setLineDash([4, 2])
+      } else {
+        ctx.strokeStyle = "rgb(200, 200, 200)"
+        ctx.lineWidth = 1.5
+      }
+
+      ctx.beginPath()
+      ctx.moveTo(fromNode.x, fromNode.y)
+      ctx.lineTo(toNode.x, toNode.y)
+      ctx.stroke()
+      ctx.setLineDash([])
+
+      // Draw weight
+      const midX = (fromNode.x + toNode.x) / 2
+      const midY = (fromNode.y + toNode.y) / 2
+      ctx.fillStyle = "rgb(80, 80, 80)"
+      ctx.font = "11px sans-serif"
+      ctx.textAlign = "center"
+      ctx.fillText(weight.toString(), midX, midY - 8)
     })
 
-    selectedCase.edges.forEach((e) => {
-      graph[e.from].push([e.to, e.weight])
-      graph[e.to].push([e.from, e.weight])
+    // Draw nodes
+    nodes.forEach((node) => {
+      const isStart = node.id === start
+      const isEnd = node.id === end
+      const isVisited = state.visitedNodes.includes(node.id)
+      const isInPath = state.path.includes(node.id)
+
+      if (isStart) {
+        ctx.fillStyle = "rgb(34, 197, 94)"
+      } else if (isEnd) {
+        ctx.fillStyle = "rgb(239, 68, 68)"
+      } else if (isInPath) {
+        ctx.fillStyle = "rgb(59, 130, 246)"
+      } else if (isVisited) {
+        ctx.fillStyle = "rgb(168, 85, 247)"
+      } else {
+        ctx.fillStyle = "rgb(255, 255, 255)"
+      }
+
+      ctx.beginPath()
+      ctx.arc(node.x, node.y, 18, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.strokeStyle = isInPath || isStart || isEnd ? "rgb(59, 130, 246)" : "rgb(150, 150, 150)"
+      ctx.lineWidth = isInPath || isStart || isEnd ? 2 : 1.5
+      ctx.stroke()
+
+      ctx.fillStyle = isStart || isEnd || isInPath ? "rgb(255, 255, 255)" : "rgb(0, 0, 0)"
+      ctx.font = "bold 12px sans-serif"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText(node.id.toString(), node.x, node.y)
     })
-
-    // Chạy tất cả thuật toán
-    const dijkstraResult = dijkstra(graph, selectedCase.start, selectedCase.end)
-    const bfsResult = bfs(graph, selectedCase.start, selectedCase.end)
-    const dfsResult = dfs(graph, selectedCase.start, selectedCase.end)
-    const aStarResult = aStar(graph, selectedCase.start, selectedCase.end, selectedCase.nodes)
-
-    setResults({
-      dijkstra: dijkstraResult,
-      bfs: bfsResult,
-      dfs: dfsResult,
-      aStar: aStarResult,
-    })
-
-    setTimeout(() => setIsRunning(false), 500)
-  }
-
-  const chartData = results
-    ? [
-        {
-          name: "Dijkstra",
-          visited: results.dijkstra.visited.size,
-          time: results.dijkstra.time,
-          distance: results.dijkstra.distance,
-        },
-        {
-          name: "BFS",
-          visited: results.bfs.visited.size,
-          time: results.bfs.time,
-          distance: results.bfs.distance,
-        },
-        {
-          name: "DFS",
-          visited: results.dfs.visited.size,
-          time: results.dfs.time,
-          distance: results.dfs.distance,
-        },
-        {
-          name: "A*",
-          visited: results.aStar.visited.size,
-          time: results.aStar.time,
-          distance: results.aStar.distance,
-        },
-      ]
-    : []
-
-  const radarData = chartData.map((item) => ({
-    name: item.name,
-    visited: item.visited,
-    efficiency: item.visited > 0 ? Math.round((1 / item.visited) * 100) : 0,
-    speed: Math.max(...chartData.map((d) => d.time)) - item.time + 1,
-  }))
+  }, [nodes, edges, state, start, end])
 
   return (
-    <div className="space-y-6">
-      {/* Test Case Selector */}
-      <Card className="glassmorphism">
-        <CardHeader>
-          <CardTitle>Chọn Test Case</CardTitle>
-          <CardDescription>So sánh hiệu suất của 4 thuật toán với các tình huống khác nhau</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {testCases.map((tc) => (
-              <Button
-                key={tc.id}
-                onClick={() => setSelectedCase(tc)}
-                variant={selectedCase.id === tc.id ? "default" : "outline"}
-                className={`justify-start h-auto p-3 text-left ${
-                  selectedCase.id === tc.id
-                    ? "bg-gradient-to-r from-primary to-primary/80 border-0"
-                    : "border border-border/50 hover:bg-card/50"
-                }`}
-              >
-                <div className="space-y-1">
-                  <p className="font-semibold">{tc.name}</p>
-                  <p className="text-xs opacity-70">{tc.description}</p>
-                </div>
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-3">
+      <canvas ref={canvasRef} width={450} height={350} className="w-full border border-border rounded-lg bg-card" />
+      <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="bg-primary/10 p-2 rounded text-center">
+          <p className="text-xs text-muted-foreground">Nút Duyệt</p>
+          <p className="font-bold text-primary">{state.visitedNodes.length}</p>
+        </div>
+        <div className="bg-secondary/10 p-2 rounded text-center">
+          <p className="text-xs text-muted-foreground">Khoảng Cách</p>
+          <p className="font-bold text-secondary">
+            {state.distance === Number.POSITIVE_INFINITY ? "∞" : state.distance.toFixed(1)}
+          </p>
+        </div>
+        <div className="bg-accent/10 p-2 rounded text-center">
+          <p className="text-xs text-muted-foreground">Thời Gian</p>
+          <p className="font-bold text-accent">{state.time.toFixed(2)}ms</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function ComparisonCustom() {
+  const [selectedMode, setSelectedMode] = useState<ComparisonMode>(comparisonModes[0])
+  const [selectedGraphIdx, setSelectedGraphIdx] = useState(0)
+  const [isRunning, setIsRunning] = useState(false)
+  const [results, setResults] = useState<any>({})
+
+  const selectedGraph = testGraphs[selectedGraphIdx]
+
+  const handleRunComparison = () => {
+    setIsRunning(true)
+    setResults({})
+  }
+
+  return (
+    <div className="space-y-6 pb-8">
+      {/* Header Section */}
+      <div className="space-y-2">
+        <h2 className="text-3xl font-bold text-balance">So Sánh Thuật Toán</h2>
+        <p className="text-muted-foreground">Chọn chế độ so sánh và đồ thị test để xem hiệu suất của từng thuật toán</p>
+      </div>
+
+      {/* Mode Selection Grid */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-6 bg-gradient-to-b from-primary to-primary/60 rounded-full"></div>
+          <h3 className="font-semibold text-lg">Chế Độ So Sánh</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {comparisonModes.map((mode) => (
+            <Button
+              key={mode.id}
+              onClick={() => {
+                setSelectedMode(mode)
+                setResults({})
+              }}
+              variant={selectedMode.id === mode.id ? "default" : "outline"}
+              className={`justify-start h-12 px-4 transition-all ${
+                selectedMode.id === mode.id
+                  ? "bg-gradient-to-r from-primary to-primary/80 border-0 text-white shadow-md"
+                  : "border border-border/50 hover:border-primary/50 hover:bg-primary/5"
+              }`}
+            >
+              <span className="text-lg mr-2">{mode.icon}</span>
+              <span className="font-medium text-sm">{mode.name}</span>
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Graph Selection */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-6 bg-gradient-to-b from-secondary to-secondary/60 rounded-full"></div>
+          <h3 className="font-semibold text-lg">Đồ Thị Test</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {testGraphs.map((graph, idx) => (
+            <Button
+              key={idx}
+              onClick={() => {
+                setSelectedGraphIdx(idx)
+                setResults({})
+              }}
+              variant={selectedGraphIdx === idx ? "default" : "outline"}
+              className={`justify-start h-12 px-4 transition-all ${
+                selectedGraphIdx === idx
+                  ? "bg-gradient-to-r from-secondary to-secondary/80 border-0 text-white shadow-md"
+                  : "border border-border/50 hover:border-secondary/50 hover:bg-secondary/5"
+              }`}
+            >
+              <span className="font-medium text-sm">{graph.name}</span>
+            </Button>
+          ))}
+        </div>
+      </div>
 
       {/* Run Button */}
       <Button
-        onClick={runComparison}
-        className="w-full h-12 text-lg bg-gradient-to-r from-secondary to-secondary/80 hover:shadow-lg hover:shadow-secondary/30"
+        onClick={handleRunComparison}
+        className="w-full h-12 text-base font-semibold bg-gradient-to-r from-accent to-accent/80 hover:shadow-lg hover:shadow-accent/30 transition-all"
         disabled={isRunning}
       >
-        {isRunning ? "Đang So Sánh..." : "Chạy So Sánh"}
+        {isRunning ? (
+          <span className="flex items-center gap-2">
+            <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            Đang So Sánh...
+          </span>
+        ) : (
+          <span>▶ Chạy So Sánh</span>
+        )}
       </Button>
 
-      {/* Results */}
-      {results && (
-        <div className="space-y-6">
-          {/* Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {chartData.map((data) => (
-              <Card key={data.name} className="glassmorphism">
-                <CardHeader>
-                  <CardTitle className="text-base">{data.name}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Nút Duyệt</p>
-                    <p className="text-2xl font-bold text-primary">{data.visited}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Khoảng Cách</p>
-                    <p className="text-2xl font-bold text-secondary">
-                      {data.distance === Number.POSITIVE_INFINITY ? "∞" : data.distance.toFixed(1)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Thời Gian</p>
-                    <p className="text-lg font-bold text-accent">{data.time.toFixed(3)}ms</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Bar Chart - Nodes Visited */}
-            <Card className="glassmorphism">
-              <CardHeader>
-                <CardTitle>Số Nút Duyệt</CardTitle>
+      {/* Side by Side Visualization */}
+      {(isRunning || Object.keys(results).length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {selectedMode.algorithms.map((algo) => (
+            <Card key={algo} className="glassmorphism overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-3 border-b border-border/50">
+                <CardTitle className="text-lg">
+                  {algo === "bellmanFord"
+                    ? "Bellman-Ford"
+                    : algo === "aStar"
+                      ? "A*"
+                      : algo.charAt(0).toUpperCase() + algo.slice(1)}
+                </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="currentColor" />
-                    <YAxis stroke="currentColor" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.2)" }}
-                    />
-                    <Bar dataKey="visited" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="pt-4">
+                <ComparisonVisualizer
+                  nodes={selectedGraph.nodes}
+                  edges={selectedGraph.edges}
+                  start={selectedGraph.start}
+                  end={selectedGraph.end}
+                  algorithm={algo}
+                  isRunning={isRunning}
+                  onComplete={(result) => {
+                    setResults((prev: any) => {
+                      const updated = {
+                        ...prev,
+                        [algo]: result,
+                      }
+                      return updated
+                    })
+                  }}
+                />
               </CardContent>
             </Card>
-
-            {/* Bar Chart - Time */}
-            <Card className="glassmorphism">
-              <CardHeader>
-                <CardTitle>Thời Gian Thực Thi</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="currentColor" />
-                    <YAxis stroke="currentColor" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.2)" }}
-                    />
-                    <Bar dataKey="time" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Radar Chart */}
-            <Card className="glassmorphism">
-              <CardHeader>
-                <CardTitle>So Sánh Hiệu Suất Toàn Cảnh</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                    <PolarAngleAxis dataKey="name" stroke="currentColor" />
-                    <PolarRadiusAxis stroke="currentColor" />
-                    <Radar
-                      name="Nút Duyệt"
-                      dataKey="visited"
-                      stroke="hsl(var(--primary))"
-                      fill="hsl(var(--primary))"
-                      fillOpacity={0.3}
-                    />
-                    <Radar
-                      name="Hiệu Suất"
-                      dataKey="efficiency"
-                      stroke="hsl(var(--secondary))"
-                      fill="hsl(var(--secondary))"
-                      fillOpacity={0.3}
-                    />
-                    <Legend />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Distance Comparison */}
-            <Card className="glassmorphism">
-              <CardHeader>
-                <CardTitle>So Sánh Khoảng Cách</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="currentColor" />
-                    <YAxis stroke="currentColor" />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.2)" }}
-                    />
-                    <Bar dataKey="distance" fill="hsl(var(--accent))" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Analysis */}
-          <Card className="glassmorphism border-primary/50 bg-primary/10">
-            <CardHeader>
-              <CardTitle className="text-primary">Phân Tích Nhược Điểm</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-semibold text-primary mb-2">Dijkstra</h4>
-                <p className="text-sm text-muted-foreground">
-                  ✓ Luôn tìm được đường ngắn nhất với đồ thị trọng số dương. ✗ Chậm hơn BFS trên đồ thị không trọng số.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-secondary mb-2">BFS</h4>
-                <p className="text-sm text-muted-foreground">
-                  ✓ Nhanh và tối ưu cho đồ thị không trọng số. ✗ Bỏ qua trọng số cạnh, không phù hợp với đồ thị có trọng
-                  số.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-semibold text-accent mb-2">DFS</h4>
-                <p className="text-sm text-muted-foreground">
-                  ✓ Tiêu tốn ít bộ nhớ, tốt cho tìm kiếm sâu. ✗ Không đảm bảo đường ngắn nhất, dễ bị kẹt trong nhánh
-                  dài.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">A*</h4>
-                <p className="text-sm text-muted-foreground">
-                  ✓ Cải thiện Dijkstra bằng heuristic, rất nhanh. ✗ Cần hàm heuristic tốt, phức tạp hơn Dijkstra.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Path Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(results).map(([name, result]: [string, any]) => (
-              <Card key={name} className="glassmorphism">
-                <CardHeader>
-                  <CardTitle className="text-base capitalize">{name}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Đường Đi</p>
-                    <p className="font-mono text-xs break-all">
-                      {result.path.length > 0 ? result.path.join(" → ") : "Không tìm được"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Các Nút Duyệt</p>
-                    <p className="font-mono text-xs break-all max-h-20 overflow-y-auto">
-                      {Array.from(result.visited)
-                        .sort((a, b) => a - b)
-                        .join(", ")}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          ))}
         </div>
       )}
     </div>
