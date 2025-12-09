@@ -325,3 +325,80 @@ export function bellmanFord(graph: Graph, start: number, end: number): Algorithm
     time: endTime - startTime,
   }
 }
+
+// Floyd-Warshall: Tìm đường đi ngắn nhất giữa tất cả cặp đỉnh
+export function floydWarshall(graph: Graph, start: number, end: number): AlgorithmResult {
+  const startTime = performance.now()
+  const nodes = Object.keys(graph).map(Number.parseInt)
+  const n = nodes.length
+
+  // Initialize distance matrix
+  const dist: { [key: number]: { [key: number]: number } } = {}
+  const next: { [key: number]: { [key: number]: number | null } } = {}
+  const visited = new Set<number>()
+
+  nodes.forEach((i) => {
+    dist[i] = {}
+    next[i] = {}
+    nodes.forEach((j) => {
+      if (i === j) {
+        dist[i][j] = 0
+        next[i][j] = null
+      } else {
+        dist[i][j] = Number.POSITIVE_INFINITY
+        next[i][j] = null
+      }
+    })
+  })
+
+  // Set edge weights
+  nodes.forEach((u) => {
+    if (graph[u]) {
+      graph[u].forEach(([v, weight]) => {
+        dist[u][v] = weight
+        next[u][v] = v
+      })
+    }
+  })
+
+  // Floyd-Warshall algorithm
+  for (let k = 0; k < nodes.length; k++) {
+    const midNode = nodes[k]
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = 0; j < nodes.length; j++) {
+        const iNode = nodes[i]
+        const jNode = nodes[j]
+        if (dist[iNode][midNode] !== Number.POSITIVE_INFINITY && dist[midNode][jNode] !== Number.POSITIVE_INFINITY) {
+          const newDist = dist[iNode][midNode] + dist[midNode][jNode]
+          if (newDist < dist[iNode][jNode]) {
+            dist[iNode][jNode] = newDist
+            next[iNode][jNode] = next[iNode][midNode]
+          }
+        }
+      }
+    }
+  }
+
+  // Mark all visited nodes
+  nodes.forEach((node) => {
+    visited.add(node)
+  })
+
+  const endTime = performance.now()
+
+  // Reconstruct path from start to end
+  const path: number[] = []
+  let current: number | null = start
+  while (current !== null) {
+    path.push(current)
+    if (current === end) break
+    current = next[current][end]
+  }
+
+  return {
+    visited,
+    path: dist[start][end] !== Number.POSITIVE_INFINITY ? path : [],
+    distance: dist[start][end],
+    time: endTime - startTime,
+  }
+}

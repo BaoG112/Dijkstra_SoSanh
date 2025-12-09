@@ -3,13 +3,15 @@
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { dijkstra, bfs, dfs, aStar, bellmanFord } from "@/lib/algorithms"
+import { dijkstra, bfs, dfs, aStar, bellmanFord, floydWarshall } from "@/lib/algorithms"
 
 interface ComparisonMode {
   id: string
   name: string
   algorithms: [string, string]
   icon: string
+  description: string
+  graph: TestGraph
 }
 
 const comparisonModes: ComparisonMode[] = [
@@ -18,24 +20,100 @@ const comparisonModes: ComparisonMode[] = [
     name: "Dijkstra vs Bellman-Ford",
     algorithms: ["dijkstra", "bellmanFord"],
     icon: "⚔️",
+    description: "Dijkstra không xử lý trọng số âm, Bellman-Ford có thể",
+    graph: {
+      name: "Trọng Số Âm",
+      nodes: [
+        { id: 0, x: 100, y: 200 },
+        { id: 1, x: 250, y: 100 },
+        { id: 2, x: 250, y: 300 },
+        { id: 3, x: 400, y: 200 },
+      ],
+      edges: [
+        { from: 0, to: 1, weight: 4 },
+        { from: 0, to: 2, weight: 2 },
+        { from: 1, to: 3, weight: -3 },
+        { from: 2, to: 1, weight: 1 },
+        { from: 2, to: 3, weight: 5 },
+      ],
+      start: 0,
+      end: 3,
+    },
   },
   {
     id: "dijkstra-bfs",
     name: "Dijkstra vs BFS",
     algorithms: ["dijkstra", "bfs"],
     icon: "🔄",
+    description: "BFS nhanh với trọng số bằng nhau, Dijkstra tối ưu với trọng số khác nhau",
+    graph: {
+      name: "Trọng Số Bằng Nhau",
+      nodes: [
+        { id: 0, x: 100, y: 200 },
+        { id: 1, x: 200, y: 100 },
+        { id: 2, x: 200, y: 300 },
+        { id: 3, x: 300, y: 200 },
+        { id: 4, x: 400, y: 150 },
+      ],
+      edges: [
+        { from: 0, to: 1, weight: 1 },
+        { from: 0, to: 2, weight: 1 },
+        { from: 1, to: 3, weight: 1 },
+        { from: 2, to: 3, weight: 1 },
+        { from: 3, to: 4, weight: 1 },
+      ],
+      start: 0,
+      end: 4,
+    },
   },
   {
     id: "dijkstra-dfs",
     name: "Dijkstra vs DFS",
     algorithms: ["dijkstra", "dfs"],
     icon: "🌳",
+    description: "DFS không tối ưu đường đi ngắn nhất, Dijkstra luôn tìm được đường tốt nhất",
+    graph: {
+      name: "Đa Đường",
+      nodes: [
+        { id: 0, x: 100, y: 200 },
+        { id: 1, x: 200, y: 100 },
+        { id: 2, x: 200, y: 300 },
+        { id: 3, x: 300, y: 200 },
+      ],
+      edges: [
+        { from: 0, to: 1, weight: 10 },
+        { from: 0, to: 2, weight: 2 },
+        { from: 1, to: 3, weight: 1 },
+        { from: 2, to: 3, weight: 10 },
+      ],
+      start: 0,
+      end: 3,
+    },
   },
   {
-    id: "dijkstra-astar",
-    name: "Dijkstra vs A*",
-    algorithms: ["dijkstra", "aStar"],
-    icon: "⭐",
+    id: "dijkstra-floyd",
+    name: "Dijkstra vs Floyd-Warshall",
+    algorithms: ["dijkstra", "floydWarshall"],
+    icon: "🔀",
+    description: "Dijkstra: 1 nguồn → nhiều đích, Floyd-Warshall: tất cả cặp đỉnh",
+    graph: {
+      name: "Đồ Thị Đa Hướng",
+      nodes: [
+        { id: 0, x: 80, y: 150 },
+        { id: 1, x: 200, y: 100 },
+        { id: 2, x: 200, y: 200 },
+        { id: 3, x: 320, y: 150 },
+      ],
+      edges: [
+        { from: 0, to: 1, weight: 5 },
+        { from: 0, to: 2, weight: 3 },
+        { from: 1, to: 3, weight: 2 },
+        { from: 2, to: 1, weight: 1 },
+        { from: 2, to: 3, weight: 4 },
+      ],
+      start: 0,
+      end: 3,
+    },
   },
 ]
 
@@ -45,87 +123,6 @@ interface TestGraph {
   edges: Array<{ from: number; to: number; weight: number }>
   start: number
   end: number
-}
-
-const testGraphs: TestGraph[] = [
-  {
-    name: "Đường Thẳng",
-    nodes: [
-      { id: 0, x: 100, y: 250 },
-      { id: 1, x: 250, y: 250 },
-      { id: 2, x: 400, y: 250 },
-      { id: 3, x: 550, y: 250 },
-      { id: 4, x: 700, y: 250 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 1 },
-      { from: 1, to: 2, weight: 1 },
-      { from: 2, to: 3, weight: 1 },
-      { from: 3, to: 4, weight: 1 },
-    ],
-    start: 0,
-    end: 4,
-  },
-  {
-    name: "Nhiều Đường",
-    nodes: [
-      { id: 0, x: 150, y: 150 },
-      { id: 1, x: 250, y: 100 },
-      { id: 2, x: 250, y: 200 },
-      { id: 3, x: 350, y: 150 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 10 },
-      { from: 0, to: 2, weight: 2 },
-      { from: 1, to: 3, weight: 1 },
-      { from: 2, to: 3, weight: 10 },
-    ],
-    start: 0,
-    end: 3,
-  },
-  {
-    name: "Trọng Số Không Đều",
-    nodes: [
-      { id: 0, x: 100, y: 150 },
-      { id: 1, x: 250, y: 100 },
-      { id: 2, x: 250, y: 200 },
-      { id: 3, x: 400, y: 150 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 50 },
-      { from: 0, to: 2, weight: 10 },
-      { from: 1, to: 3, weight: 1 },
-      { from: 2, to: 3, weight: 30 },
-    ],
-    start: 0,
-    end: 3,
-  },
-  {
-    name: "Trọng Số Âm",
-    nodes: [
-      { id: 0, x: 100, y: 200 },
-      { id: 1, x: 250, y: 100 },
-      { id: 2, x: 250, y: 300 },
-      { id: 3, x: 400, y: 200 },
-    ],
-    edges: [
-      { from: 0, to: 1, weight: 4 },
-      { from: 0, to: 2, weight: 2 },
-      { from: 1, to: 3, weight: -3 },
-      { from: 2, to: 1, weight: 1 },
-      { from: 2, to: 3, weight: 5 },
-    ],
-    start: 0,
-    end: 3,
-  },
-]
-
-interface VisualizerState {
-  visitedNodes: number[]
-  path: number[]
-  distance: number
-  time: number
-  isRunning: boolean
 }
 
 function ComparisonVisualizer({
@@ -185,6 +182,9 @@ function ComparisonVisualizer({
             break
           case "aStar":
             result = aStar(graph, start, end, nodes)
+            break
+          case "floydWarshall":
+            result = floydWarshall(graph)
             break
           default:
             return
@@ -331,13 +331,20 @@ function ComparisonVisualizer({
   )
 }
 
+interface VisualizerState {
+  visitedNodes: number[]
+  path: number[]
+  distance: number
+  time: number
+  isRunning: boolean
+}
+
 export default function ComparisonCustom() {
   const [selectedMode, setSelectedMode] = useState<ComparisonMode>(comparisonModes[0])
-  const [selectedGraphIdx, setSelectedGraphIdx] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
   const [results, setResults] = useState<any>({})
 
-  const selectedGraph = testGraphs[selectedGraphIdx]
+  const selectedGraph = selectedMode.graph
 
   const handleRunComparison = () => {
     setIsRunning(true)
@@ -349,7 +356,7 @@ export default function ComparisonCustom() {
       {/* Header Section */}
       <div className="space-y-2">
         <h2 className="text-3xl font-bold text-balance">So Sánh Thuật Toán</h2>
-        <p className="text-muted-foreground">Chọn chế độ so sánh và đồ thị test để xem hiệu suất của từng thuật toán</p>
+        <p className="text-muted-foreground">Chọn chế độ so sánh để xem hiệu suất của từng thuật toán</p>
       </div>
 
       {/* Mode Selection Grid */}
@@ -358,51 +365,26 @@ export default function ComparisonCustom() {
           <div className="w-1 h-6 bg-gradient-to-b from-primary to-primary/60 rounded-full"></div>
           <h3 className="font-semibold text-lg">Chế Độ So Sánh</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {comparisonModes.map((mode) => (
-            <Button
-              key={mode.id}
-              onClick={() => {
-                setSelectedMode(mode)
-                setResults({})
-              }}
-              variant={selectedMode.id === mode.id ? "default" : "outline"}
-              className={`justify-start h-12 px-4 transition-all ${
-                selectedMode.id === mode.id
-                  ? "bg-gradient-to-r from-primary to-primary/80 border-0 text-white shadow-md"
-                  : "border border-border/50 hover:border-primary/50 hover:bg-primary/5"
-              }`}
-            >
-              <span className="text-lg mr-2">{mode.icon}</span>
-              <span className="font-medium text-sm">{mode.name}</span>
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Graph Selection */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-6 bg-gradient-to-b from-secondary to-secondary/60 rounded-full"></div>
-          <h3 className="font-semibold text-lg">Đồ Thị Test</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {testGraphs.map((graph, idx) => (
-            <Button
-              key={idx}
-              onClick={() => {
-                setSelectedGraphIdx(idx)
-                setResults({})
-              }}
-              variant={selectedGraphIdx === idx ? "default" : "outline"}
-              className={`justify-start h-12 px-4 transition-all ${
-                selectedGraphIdx === idx
-                  ? "bg-gradient-to-r from-secondary to-secondary/80 border-0 text-white shadow-md"
-                  : "border border-border/50 hover:border-secondary/50 hover:bg-secondary/5"
-              }`}
-            >
-              <span className="font-medium text-sm">{graph.name}</span>
-            </Button>
+            <div key={mode.id} className="space-y-2">
+              <Button
+                onClick={() => {
+                  setSelectedMode(mode)
+                  setResults({})
+                }}
+                variant={selectedMode.id === mode.id ? "default" : "outline"}
+                className={`w-full justify-start h-12 px-4 transition-all ${
+                  selectedMode.id === mode.id
+                    ? "bg-gradient-to-r from-primary to-primary/80 border-0 text-white shadow-md"
+                    : "border border-border/50 hover:border-primary/50 hover:bg-primary/5"
+                }`}
+              >
+                <span className="text-lg mr-2">{mode.icon}</span>
+                <span className="font-medium text-sm">{mode.name}</span>
+              </Button>
+              {selectedMode.id === mode.id && <p className="text-xs text-muted-foreground px-1">{mode.description}</p>}
+            </div>
           ))}
         </div>
       </div>
@@ -432,8 +414,8 @@ export default function ComparisonCustom() {
                 <CardTitle className="text-lg">
                   {algo === "bellmanFord"
                     ? "Bellman-Ford"
-                    : algo === "aStar"
-                      ? "A*"
+                    : algo === "floydWarshall"
+                      ? "Floyd-Warshall"
                       : algo.charAt(0).toUpperCase() + algo.slice(1)}
                 </CardTitle>
               </CardHeader>
